@@ -4,7 +4,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const ejs = require('ejs');
 const mongoose = require('mongoose');
-const encrypt = require('mongoose-encryption');
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 
 const app = express();
 
@@ -19,7 +20,6 @@ const userSchema = new mongoose.Schema({
     password:String
 });
 
-userSchema.plugin(encrypt,{secret:process.env.ENCRYPTKEY,encryptedFields: ['password']});
 const userModel = new mongoose.model('user',userSchema);
 
 app.get("/",function(req,res){
@@ -43,16 +43,18 @@ app.get("/submit",function(req,res){
 });
 
 app.post("/register",function(req,res){
-    const newUser = new userModel({
-        email:req.body.username,
-        password:req.body.password
-    });
-    newUser.save(function(err){
-        if(err){
-            console.log(err);
-        }else{
-            res.render("secrets");
-        }
+    bcrypt.hash(req.body.password,saltRounds,function(err,hash){
+        const newUser = new userModel({
+            email:req.body.username,
+            password:hash
+        });
+        newUser.save(function(err){
+            if(err){
+                console.log(err);
+            }else{
+                res.render("secrets");
+            }
+        });
     });
 });
 
@@ -64,9 +66,11 @@ app.post("/login",function(req,res){
                 console.log(err);
             }else{
                 if(userDetail){
-                    if(userDetail.password === req.body.password){
-                        res.render("secrets");
-                    }
+                    bcrypt.compare(req.body.password,userDetail.password,function(err,result){
+                        if(result){
+                            res.render("secrets");
+                        }
+                    });
                 }else{
                     res.send("The login details doesn't exist. please register.");
                 }
